@@ -5,6 +5,7 @@ class BlinkX {
     this.currentUser = null;
     this.users = [];
     this.posts = [];
+    this.darkMode = false;
     this.loadData();
     this.initApp();
   }
@@ -14,16 +15,31 @@ class BlinkX {
     const savedUsers = localStorage.getItem('blinkx_users');
     const savedPosts = localStorage.getItem('blinkx_posts');
     const savedCurrentUser = localStorage.getItem('blinkx_currentUser');
+    const savedDarkMode = localStorage.getItem('blinkx_darkMode');
 
     this.users = savedUsers ? JSON.parse(savedUsers) : [];
     this.posts = savedPosts ? JSON.parse(savedPosts) : [];
     this.currentUser = savedCurrentUser ? JSON.parse(savedCurrentUser) : null;
+    this.darkMode = savedDarkMode ? JSON.parse(savedDarkMode) : false;
+    
+    if (this.darkMode) {
+      document.body.classList.add('dark-theme');
+    }
   }
 
   saveData() {
     localStorage.setItem('blinkx_users', JSON.stringify(this.users));
     localStorage.setItem('blinkx_posts', JSON.stringify(this.posts));
     localStorage.setItem('blinkx_currentUser', JSON.stringify(this.currentUser));
+    localStorage.setItem('blinkx_darkMode', JSON.stringify(this.darkMode));
+  }
+
+  // Theme Management
+  toggleDarkMode() {
+    this.darkMode = !this.darkMode;
+    document.body.classList.toggle('dark-theme');
+    this.saveData();
+    this.renderProfilePage();
   }
 
   // User Management
@@ -64,6 +80,17 @@ class BlinkX {
     this.saveData();
   }
 
+  updateBio(bio) {
+    if (this.currentUser) {
+      this.currentUser.bio = bio;
+      const user = this.users.find(u => u.id === this.currentUser.id);
+      if (user) {
+        user.bio = bio;
+      }
+      this.saveData();
+    }
+  }
+
   // Post Management
   createPost(caption, imageData) {
     if (!this.currentUser) return { success: false };
@@ -83,6 +110,16 @@ class BlinkX {
     this.posts.unshift(newPost);
     this.saveData();
     return { success: true, post: newPost };
+  }
+
+  deletePost(postId) {
+    const postIndex = this.posts.findIndex(p => p.id === postId);
+    if (postIndex > -1 && this.posts[postIndex].userId === this.currentUser.id) {
+      this.posts.splice(postIndex, 1);
+      this.saveData();
+      return true;
+    }
+    return false;
   }
 
   likePost(postId) {
@@ -159,6 +196,15 @@ class BlinkX {
     });
   }
 
+  // Search Users
+  searchUsers(query) {
+    if (!query.trim()) return [];
+    return this.users.filter(u => 
+      u.username.toLowerCase().includes(query.toLowerCase()) ||
+      u.id.toString().includes(query)
+    ).filter(u => u.id !== this.currentUser.id);
+  }
+
   // Get User
   getUser(userId) {
     return this.users.find(u => u.id === userId);
@@ -181,7 +227,7 @@ class BlinkX {
     app.innerHTML = `
       <div class="page active" id="loginPage">
         <div class="auth-container">
-          <div class="logo">BlinkX</div>
+          <div class="logo">✨ BlinkX</div>
           <form class="auth-form" onsubmit="blinkx.handleLogin(event)">
             <div class="form-group">
               <label>Email</label>
@@ -206,7 +252,7 @@ class BlinkX {
     app.innerHTML = `
       <div class="page active" id="registerPage">
         <div class="auth-container">
-          <div class="logo">BlinkX</div>
+          <div class="logo">✨ BlinkX</div>
           <form class="auth-form" onsubmit="blinkx.handleRegister(event)">
             <div class="form-group">
               <label>Username</label>
@@ -236,14 +282,21 @@ class BlinkX {
       <div id="pages">
         <div class="page active" id="feedPage"></div>
         <div class="page" id="profilePage"></div>
+        <div class="page" id="searchPage"></div>
       </div>
       <div id="modals">
         <div class="modal" id="createModal"></div>
+        <div class="modal" id="userModal"></div>
+        <div class="modal" id="bioModal"></div>
       </div>
       <nav class="navbar">
         <button class="nav-item active" onclick="blinkx.goToFeed()">
           <div class="nav-icon">🏠</div>
           <div>Home</div>
+        </button>
+        <button class="nav-item" onclick="blinkx.goToSearch()">
+          <div class="nav-icon">🔍</div>
+          <div>Search</div>
         </button>
         <button class="nav-item" onclick="blinkx.openCreateModal()">
           <div class="nav-icon">➕</div>
@@ -263,7 +316,7 @@ class BlinkX {
     const feedPage = document.getElementById('feedPage');
     const feed = this.getFeed();
 
-    let feedHTML = '<div class="header"><div class="header-title">BlinkX</div></div><div class="feed">';
+    let feedHTML = '<div class="header"><div class="header-title">✨ BlinkX</div></div><div class="feed">';
 
     if (feed.length === 0) {
       feedHTML += '<div class="empty-state"><div class="empty-state-icon">📸</div><div class="empty-state-text">No posts yet</div></div>';
@@ -276,14 +329,17 @@ class BlinkX {
         feedHTML += `
           <div class="post">
             <div class="post-header">
-              <div class="post-user">
+              <div class="post-user" onclick="blinkx.viewUserProfile(${post.userId})" style="cursor: pointer;">
                 <div class="post-avatar">${post.avatar}</div>
                 <div class="post-user-info">
                   <h3>${post.username}</h3>
                   <p>${this.getTimeAgo(post.createdAt)}</p>
                 </div>
               </div>
-              ${!isOwnPost ? `<button class="follow-btn ${isFollowing ? 'following' : ''}" onclick="blinkx.toggleFollow(${post.userId})">${isFollowing ? 'Following' : 'Follow'}</button>` : ''}
+              <div style="display: flex; gap: 8px;">
+                ${!isOwnPost ? `<button class="follow-btn ${isFollowing ? 'following' : ''}" onclick="blinkx.toggleFollow(${post.userId})">${isFollowing ? 'Following' : 'Follow'}</button>` : ''}
+                ${isOwnPost ? `<button class="delete-btn" onclick="blinkx.confirmDeletePost(${post.id})">🗑️</button>` : ''}
+              </div>
             </div>
             ${post.image ? `<img src="${post.image}" class="post-image" alt="Post">` : ''}
             <div class="post-caption">${post.caption}</div>
@@ -318,17 +374,111 @@ class BlinkX {
     feedPage.innerHTML = feedHTML;
   }
 
+  renderSearchPage() {
+    const searchPage = document.getElementById('searchPage');
+    searchPage.innerHTML = `
+      <div class="header"><div class="header-title">Search Users</div></div>
+      <div class="search-container">
+        <input type="text" id="searchInput" placeholder="Search by username or ID..." class="search-input" oninput="blinkx.performSearch()" />
+      </div>
+      <div class="search-results" id="searchResults"></div>
+    `;
+  }
+
+  performSearch() {
+    const query = document.getElementById('searchInput').value;
+    const resultsDiv = document.getElementById('searchResults');
+    
+    if (!query.trim()) {
+      resultsDiv.innerHTML = '';
+      return;
+    }
+
+    const results = this.searchUsers(query);
+    
+    if (results.length === 0) {
+      resultsDiv.innerHTML = '<div class="no-results">No users found</div>';
+      return;
+    }
+
+    resultsDiv.innerHTML = results.map(user => {
+      const isFollowing = this.currentUser.following.includes(user.id);
+      return `
+        <div class="search-result-item">
+          <div class="search-result-info" onclick="blinkx.viewUserProfile(${user.id})" style="cursor: pointer;">
+            <div class="result-avatar">${user.avatar}</div>
+            <div>
+              <div class="result-username">@${user.username}</div>
+              <div class="result-id">ID: ${user.id}</div>
+              <div class="result-bio">${user.bio || 'No bio'}</div>
+            </div>
+          </div>
+          <button class="follow-btn ${isFollowing ? 'following' : ''}" onclick="blinkx.toggleFollow(${user.id})">${isFollowing ? 'Following' : 'Follow'}</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  viewUserProfile(userId) {
+    const user = this.getUser(userId);
+    if (!user) return;
+
+    const userPosts = this.posts.filter(p => p.userId === userId);
+    const isFollowing = this.currentUser.following.includes(userId);
+
+    const modal = document.getElementById('userModal');
+    modal.innerHTML = `
+      <div class="modal-overlay" onclick="blinkx.closeModal('userModal')"></div>
+      <div class="modal-content">
+        <button class="modal-close" onclick="blinkx.closeModal('userModal')">✕</button>
+        <div class="profile-header">
+          <div class="profile-photo">${user.avatar}</div>
+          <div class="profile-info">
+            <div class="profile-username">@${user.username}</div>
+            <div class="profile-bio">${user.bio || 'No bio'}</div>
+            <div class="profile-stats">
+              <div class="profile-stat">
+                <div class="profile-stat-number">${userPosts.length}</div>
+                <div class="profile-stat-label">Posts</div>
+              </div>
+              <div class="profile-stat">
+                <div class="profile-stat-number">${user.followers.length}</div>
+                <div class="profile-stat-label">Followers</div>
+              </div>
+              <div class="profile-stat">
+                <div class="profile-stat-number">${user.following.length}</div>
+                <div class="profile-stat-label">Following</div>
+              </div>
+            </div>
+            <button class="follow-btn ${isFollowing ? 'following' : ''}" onclick="blinkx.toggleFollow(${userId}); blinkx.viewUserProfile(${userId})">${isFollowing ? 'Following' : 'Follow'}</button>
+          </div>
+        </div>
+        <div class="profile-posts-grid">
+          ${userPosts.length === 0 ? '<div class="empty-state"><div class="empty-state-icon">📸</div></div>' : ''}
+          ${userPosts.map(post => `
+            <div class="profile-post">
+              ${post.image ? `<img src="${post.image}" alt="Post">` : ''}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+    modal.classList.add('active');
+  }
+
   renderProfilePage() {
     const profilePage = document.getElementById('profilePage');
     const userPosts = this.posts.filter(p => p.userId === this.currentUser.id);
-    const isOwnProfile = true;
 
     const profileHTML = `
       <div class="header">
-        <div class="header-title">BlinkX</div>
-        <button class="action-btn" onclick="blinkx.logout()" style="margin: 0;">
-          <span>🚪</span>
-        </button>
+        <div class="header-title">✨ BlinkX</div>
+        <div style="display: flex; gap: 10px;">
+          <button class="theme-toggle" onclick="blinkx.toggleDarkMode()">${this.darkMode ? '☀️' : '🌙'}</button>
+          <button class="action-btn" onclick="blinkx.logout()" style="margin: 0;">
+            <span>🚪</span>
+          </button>
+        </div>
       </div>
       <div class="profile-container">
         <div class="profile-header">
@@ -336,6 +486,7 @@ class BlinkX {
           <div class="profile-info">
             <div class="profile-username">@${this.currentUser.username}</div>
             <div class="profile-bio">${this.currentUser.bio || 'No bio yet'}</div>
+            <button class="btn btn-secondary" onclick="blinkx.openBioModal()" style="margin-top: 12px; width: 100%; padding: 8px; font-size: 12px;">Edit Bio</button>
             <div class="profile-stats">
               <div class="profile-stat">
                 <div class="profile-stat-number">${userPosts.length}</div>
@@ -355,8 +506,9 @@ class BlinkX {
         <div class="profile-posts-grid">
           ${userPosts.length === 0 ? '<div class="empty-state"><div class="empty-state-icon">📸</div></div>' : ''}
           ${userPosts.map(post => `
-            <div class="profile-post">
+            <div class="profile-post" style="position: relative;">
               ${post.image ? `<img src="${post.image}" alt="Post">` : ''}
+              <div class="post-overlay" onclick="blinkx.confirmDeletePost(${post.id})">🗑️ Delete</div>
             </div>
           `).join('')}
         </div>
@@ -369,8 +521,10 @@ class BlinkX {
   renderCreateModal() {
     const modal = document.getElementById('createModal');
     modal.innerHTML = `
+      <div class="modal-overlay" onclick="blinkx.closeCreateModal()"></div>
       <div class="modal-content">
         <div class="modal-title">Create Post</div>
+        <button class="modal-close" onclick="blinkx.closeCreateModal()">✕</button>
         <form class="create-post-form" onsubmit="blinkx.submitPost(event)">
           <div class="image-upload">
             <label>Upload Image</label>
@@ -390,6 +544,31 @@ class BlinkX {
       </div>
     `;
     modal.classList.add('active');
+  }
+
+  renderBioModal() {
+    const modal = document.getElementById('bioModal');
+    modal.innerHTML = `
+      <div class="modal-overlay" onclick="blinkx.closeBioModal()"></div>
+      <div class="modal-content">
+        <div class="modal-title">Edit Bio</div>
+        <button class="modal-close" onclick="blinkx.closeBioModal()">✕</button>
+        <div class="form-group">
+          <label>Bio (max 150 characters)</label>
+          <textarea id="bioInput" placeholder="Write your bio..." rows="4" maxlength="150">${this.currentUser.bio}</textarea>
+          <div class="char-count"><span id="charCount">0</span>/150</div>
+        </div>
+        <button class="btn btn-primary" onclick="blinkx.saveBio()">Save Bio</button>
+        <button class="btn btn-secondary" onclick="blinkx.closeBioModal()">Cancel</button>
+      </div>
+    `;
+    modal.classList.add('active');
+    
+    const bioInput = document.getElementById('bioInput');
+    document.getElementById('charCount').textContent = bioInput.value.length;
+    bioInput.addEventListener('input', (e) => {
+      document.getElementById('charCount').textContent = e.target.value.length;
+    });
   }
 
   // Event Handlers
@@ -476,6 +655,22 @@ class BlinkX {
     this.renderFeedPage();
   }
 
+  confirmDeletePost(postId) {
+    if (confirm('Are you sure you want to delete this post?')) {
+      if (this.deletePost(postId)) {
+        this.renderFeedPage();
+        this.renderProfilePage();
+      }
+    }
+  }
+
+  saveBio() {
+    const bio = document.getElementById('bioInput').value;
+    this.updateBio(bio);
+    this.closeBioModal();
+    this.renderProfilePage();
+  }
+
   // Navigation
   goToFeed() {
     this.switchPage('feedPage');
@@ -483,11 +678,18 @@ class BlinkX {
     document.querySelectorAll('.nav-item')[0].classList.add('active');
   }
 
+  goToSearch() {
+    this.renderSearchPage();
+    this.switchPage('searchPage');
+    document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+    document.querySelectorAll('.nav-item')[1].classList.add('active');
+  }
+
   goToProfile() {
     this.renderProfilePage();
     this.switchPage('profilePage');
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
-    document.querySelectorAll('.nav-item')[2].classList.add('active');
+    document.querySelectorAll('.nav-item')[3].classList.add('active');
   }
 
   goToLogin() {
@@ -509,6 +711,18 @@ class BlinkX {
 
   closeCreateModal() {
     document.getElementById('createModal').classList.remove('active');
+  }
+
+  openBioModal() {
+    this.renderBioModal();
+  }
+
+  closeBioModal() {
+    document.getElementById('bioModal').classList.remove('active');
+  }
+
+  closeModal(modalId) {
+    document.getElementById(modalId).classList.remove('active');
   }
 
   logout() {
