@@ -19,6 +19,24 @@ A modern, lightweight social media platform with a clean black and white design,
 - 🔄 Dynamic feed showing posts from followed users
 - ⏱️ Timestamp for each post
 
+- ```markdown
+  
+# 📷 Application Screenshots
+
+| 🏠 Home Feed | 🔍 Search |
+|--------------|-----------|
+| ![](screenshots/home1.png) | ![](screenshots/search.png) |
+
+| ➕ Create Post | 👤 Profile |
+|---------------|------------|
+| ![](screenshots/post.png) | ![](screenshots/profile.png) |
+
+| 🌙 Dark Theme |
+|---------------|
+| ![](screenshots/darktheme.png) |
+```
+
+
 ### User Profile
 - 👤 Profile picture with initials
 - 📊 Stats: Posts, Followers, Following count
